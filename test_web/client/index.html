@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <script src="https://webrtc.github.io/adapter/adapter-latest.js"></script>
+    <script src="webrtc.js"></script>
+  </head>
+
+  <body>
+    <audio id="localAudio" autoplay muted style="width:40%;"></audio>
+    <audio id="remoteAudio" autoplay style="width:40%;"></audio>
+
+    <br />
+
+    <input type="button" id="start" onclick="start(true)" value="Start Audio"></input>
+
+    <script type="text/javascript">
+        pageReady();
+    </script>
+  </body>
+</html>
