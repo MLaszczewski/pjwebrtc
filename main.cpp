@@ -9,19 +9,44 @@
 #include "src/PeerConnection.h"
 #include <WebSocket.h>
 #include <json.hpp>
+#include <random>
+
+std::string generateRandomId(size_t length = 0)
+{
+  static const std::string::value_type allowed_chars[] {"123456789BCDFGHJKLMNPQRSTVWXZbcdfghjklmnpqrstvwxz"};
+
+  static thread_local std::default_random_engine randomEngine(std::random_device{}());
+  static thread_local std::uniform_int_distribution<int> randomDistribution(0, sizeof(allowed_chars) - 1);
+
+  std::string id(length ? length : 32, '\0');
+
+  for (std::string::value_type& c : id) {
+    c = allowed_chars[randomDistribution(randomEngine)];
+  }
+
+  return id;
+}
 
 int main(int argc, const char** argv) {
   webrtc::init();
 
-  bool offerer = false;
+  bool offerer = std::string(argv[1]) == "call";
 
   webrtc::UserMediaConstraints constraints;
   std::shared_ptr<webrtc::UserMedia> userMedia = webrtc::UserMedia::getUserMedia(constraints);
 
   webrtc::PeerConnectionConfiguration pcConfig;
+  nlohmann::json iceServers =  {
+      {
+          { "urls", "turn:turn.xaos.ninja:4433" },
+          { "username", "test" },
+          { "credential", "12345" }
+      }
+  };
+  pcConfig.iceServers = iceServers;
   std::shared_ptr<webrtc::PeerConnection> peerConnection = std::make_shared<webrtc::PeerConnection>(pcConfig);
 
-  std::string uuid = "abc12345";
+  std::string uuid = generateRandomId(10);
 
   pj_thread_t* wsThread = nullptr;
   pj_thread_desc wsThreadDesc;
@@ -45,6 +70,11 @@ int main(int argc, const char** argv) {
                                     {"uuid", uuid}};
               webSocket->send(msg.dump(2), wsxx::WebSocket::PacketType::Text);
             }
+/*            {
+              nlohmann::json msg = {{"ice",  nullptr},
+                                    {"uuid", uuid}};
+              webSocket->send(msg.dump(2), wsxx::WebSocket::PacketType::Text);
+            }*/
           });
         }
       },
@@ -61,7 +91,7 @@ int main(int argc, const char** argv) {
           auto sdpString = (*sdp)["sdp"];
           peerConnection->setRemoteDescription(*sdp);
           if((*sdp)["type"] == "offer" && !offerer) {
-            peerConnection->createAnswer(*sdp)->onResolved([=](nlohmann::json answer) {
+            peerConnection->createAnswer()->onResolved([=](nlohmann::json answer) {
               peerConnection->setLocalDescription(answer);
               nlohmann::json msg = {{"sdp", answer},
                                     {"uuid", uuid}};
@@ -71,6 +101,11 @@ int main(int argc, const char** argv) {
                                       {"uuid", uuid}};
                 webSocket->send(msg.dump(2), wsxx::WebSocket::PacketType::Text);
               }
+           /*   {
+                nlohmann::json msg = {{"ice",  nullptr},
+                                      {"uuid", uuid}};
+                webSocket->send(msg.dump(2), wsxx::WebSocket::PacketType::Text);
+              }*/
             });
           }
         } else if(ice != msg.end()) {

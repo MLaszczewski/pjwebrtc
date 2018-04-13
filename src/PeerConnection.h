@@ -14,7 +14,7 @@
 namespace webrtc {
 
   struct PeerConnectionConfiguration {
-
+    nlohmann::json iceServers;
   };
 
   struct MediaTransport {
@@ -69,26 +69,54 @@ namespace webrtc {
     void startTransportIfPossible();
     void startMedia();
 
+    pj_timer_entry statTimerEntry;
+
+    void readStats();
+    void scheduleReadStats(int secs, int msecs);
+
+    friend void  statTimerCb(pj_timer_heap_t *ht, pj_timer_entry *e);
+
+    void addIceServer(std::string& url, std::string username, std::string password);
+
+    void handleDisconnect();
+    bool closed;
+
+    unsigned int lastRtpTs;
+
   public:
     pj_ioqueue_t* ioqueue;
     pj_timer_heap_t* timerHeap;
+
+
+    std::string iceGatheringState;
+    std::function<void(std::string)> onIceGatheringStateChange;
+    std::string iceConnectionState;
+    std::function<void(std::string)> onIceConnectionStateChange;
+    std::string connectionState;
+    std::function<void(std::string)> onConnectionStateChange;
+    std::string signalingState;
+    std::function<void(std::string)> onSignalingStateChange;
+
 
     std::vector<nlohmann::json> localCandidates;
 
     PeerConnectionConfiguration configuration;
 
     PeerConnection(PeerConnectionConfiguration& configurationp);
+    ~PeerConnection();
 
     void addStream(std::shared_ptr<UserMedia> userMedia);
     std::shared_ptr<promise::Promise<bool>> gatherIceCandidates(int streamsCount);
 
 
     std::shared_ptr<promise::Promise<nlohmann::json>> createOffer();
-    std::shared_ptr<promise::Promise<nlohmann::json>> createAnswer(nlohmann::json offer);
+    std::shared_ptr<promise::Promise<nlohmann::json>> createAnswer();
     void setLocalDescription(nlohmann::json sdp);
     void setRemoteDescription(nlohmann::json sdp);
 
     void addIceCandidate(nlohmann::json candidate);
+
+    void close();
 
    /// callbacks:
     void handleIceTransportComplete(pjmedia_transport *pTransport);

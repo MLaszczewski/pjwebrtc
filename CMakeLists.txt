@@ -27,26 +27,26 @@ add_executable(pjwebrtc ${SOURCES})
 target_link_libraries(pjwebrtc
         stdc++
         opus
-        pj-x86_64-apple-darwin15.6.0
-        pjlib-util-x86_64-apple-darwin15.6.0
-        pjnath-x86_64-apple-darwin15.6.0
-        pjmedia-x86_64-apple-darwin15.6.0.a
-        pjmedia-videodev-x86_64-apple-darwin15.6.0
-        pjmedia-audiodev-x86_64-apple-darwin15.6.0
-        pjmedia-codec-x86_64-apple-darwin15.6.0
-        pjsip-simple-x86_64-apple-darwin15.6.0
-        pjsip-ua-x86_64-apple-darwin15.6.0
-        pjsip-x86_64-apple-darwin15.6.0
-        pjsua-x86_64-apple-darwin15.6.0
-        pjsua2-x86_64-apple-darwin15.6.0
-        resample-x86_64-apple-darwin15.6.0
-        gsmcodec-x86_64-apple-darwin15.6.0
-        speex-x86_64-apple-darwin15.6.0
-        ilbccodec-x86_64-apple-darwin15.6.0
-        g7221codec-x86_64-apple-darwin15.6.0
-        yuv-x86_64-apple-darwin15.6.0
-        webrtc-x86_64-apple-darwin15.6.0
-        srtp-x86_64-apple-darwin15.6.0
+        pj-x86_64-apple-darwin17.5.0
+        pjlib-util-x86_64-apple-darwin17.5.0
+        pjnath-x86_64-apple-darwin17.5.0
+        pjmedia-x86_64-apple-darwin17.5.0.a
+        pjmedia-videodev-x86_64-apple-darwin17.5.0
+        pjmedia-audiodev-x86_64-apple-darwin17.5.0
+        pjmedia-codec-x86_64-apple-darwin17.5.0
+        pjsip-simple-x86_64-apple-darwin17.5.0
+        pjsip-ua-x86_64-apple-darwin17.5.0
+        pjsip-x86_64-apple-darwin17.5.0
+        pjsua-x86_64-apple-darwin17.5.0
+        pjsua2-x86_64-apple-darwin17.5.0
+        resample-x86_64-apple-darwin17.5.0
+        gsmcodec-x86_64-apple-darwin17.5.0
+        speex-x86_64-apple-darwin17.5.0
+        ilbccodec-x86_64-apple-darwin17.5.0
+        g7221codec-x86_64-apple-darwin17.5.0
+        yuv-x86_64-apple-darwin17.5.0
+        webrtc-x86_64-apple-darwin17.5.0
+        srtp-x86_64-apple-darwin17.5.0
         /usr/local/opt/openssl@1.1/lib/libssl.1.1.dylib
         /usr/local/opt/openssl@1.1/lib/libcrypto.1.1.dylib
         )

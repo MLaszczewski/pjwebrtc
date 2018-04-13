@@ -112,6 +112,7 @@ function createdDescription(description) {
 function gotRemoteStream(event) {
   console.log('got remote stream');
   remoteAudio.srcObject = event.streams[0];
+  //remoteAudio.volume = 0.0;
 }
 
 function errorHandler(error) {
