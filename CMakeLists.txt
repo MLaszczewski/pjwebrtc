@@ -3,9 +3,9 @@ project(pjwebrtc)
 
 set(CMAKE_CXX_STANDARD 14)
 
-set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -framework AudioUnit")
-set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -framework CoreAudio")
-set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -framework AudioToolbox")
+#set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -framework AudioUnit")
+#set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -framework CoreAudio")
+#set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -framework AudioToolbox")
 
 set(MAIN_DIR .)
 set(LIB_DIR ${MAIN_DIR}/lib)
@@ -24,29 +24,36 @@ set(SOURCES main.cpp ${SRC_FILE_LIST} ${PROMISE_SRC_LIST} ${WSXX_SRC_LIST})
 
 add_executable(pjwebrtc ${SOURCES})
 
+set(PJ_SUFIX unknown-linux-gnu)
+
 target_link_libraries(pjwebrtc
         stdc++
         opus
-        pj-x86_64-apple-darwin17.5.0
-        pjlib-util-x86_64-apple-darwin17.5.0
-        pjnath-x86_64-apple-darwin17.5.0
-        pjmedia-x86_64-apple-darwin17.5.0.a
-        pjmedia-videodev-x86_64-apple-darwin17.5.0
-        pjmedia-audiodev-x86_64-apple-darwin17.5.0
-        pjmedia-codec-x86_64-apple-darwin17.5.0
-        pjsip-simple-x86_64-apple-darwin17.5.0
-        pjsip-ua-x86_64-apple-darwin17.5.0
-        pjsip-x86_64-apple-darwin17.5.0
-        pjsua-x86_64-apple-darwin17.5.0
-        pjsua2-x86_64-apple-darwin17.5.0
-        resample-x86_64-apple-darwin17.5.0
-        gsmcodec-x86_64-apple-darwin17.5.0
-        speex-x86_64-apple-darwin17.5.0
-        ilbccodec-x86_64-apple-darwin17.5.0
-        g7221codec-x86_64-apple-darwin17.5.0
-        yuv-x86_64-apple-darwin17.5.0
-        webrtc-x86_64-apple-darwin17.5.0
-        srtp-x86_64-apple-darwin17.5.0
-        /usr/local/opt/openssl@1.1/lib/libssl.1.1.dylib
-        /usr/local/opt/openssl@1.1/lib/libcrypto.1.1.dylib
+        pjnath-x86_64-${PJ_SUFIX}
+        pjmedia-x86_64-${PJ_SUFIX}
+        pjmedia-videodev-x86_64-${PJ_SUFIX}
+        pjmedia-audiodev-x86_64-${PJ_SUFIX}
+        pjmedia-codec-x86_64-${PJ_SUFIX}
+        pjsip-simple-x86_64-${PJ_SUFIX}
+        pjsip-ua-x86_64-${PJ_SUFIX}
+        pjsip-x86_64-${PJ_SUFIX}
+        pjsua-x86_64-${PJ_SUFIX}
+        pjsua2-x86_64-${PJ_SUFIX}
+        resample-x86_64-${PJ_SUFIX}
+        gsmcodec-x86_64-${PJ_SUFIX}
+        speex-x86_64-${PJ_SUFIX}
+        ilbccodec-x86_64-${PJ_SUFIX}
+        g7221codec-x86_64-${PJ_SUFIX}
+        yuv-x86_64-${PJ_SUFIX}
+        webrtc-x86_64-${PJ_SUFIX}
+        srtp-x86_64-${PJ_SUFIX}
+        pj-x86_64-${PJ_SUFIX}
+        pjlib-util-x86_64-${PJ_SUFIX}
         )
+
+target_link_libraries(pjwebrtc ssl crypto pthread asound uuid)
+
+#target_link_libraries(pjwebrtc
+#        /usr/local/opt/openssl@1.1/lib/libssl.1.1.dylib
+#        /usr/local/opt/openssl@1.1/lib/libcrypto.1.1.dylib
+#        )

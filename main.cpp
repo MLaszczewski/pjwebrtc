@@ -44,7 +44,8 @@ int main(int argc, const char** argv) {
       }
   };
   pcConfig.iceServers = iceServers;
-  std::shared_ptr<webrtc::PeerConnection> peerConnection = std::make_shared<webrtc::PeerConnection>(pcConfig);
+  std::shared_ptr<webrtc::PeerConnection> peerConnection = std::make_shared<webrtc::PeerConnection>();
+  peerConnection->init(pcConfig);
 
   std::string uuid = generateRandomId(10);
 
@@ -70,11 +71,11 @@ int main(int argc, const char** argv) {
                                     {"uuid", uuid}};
               webSocket->send(msg.dump(2), wsxx::WebSocket::PacketType::Text);
             }
-/*            {
+            {
               nlohmann::json msg = {{"ice",  nullptr},
                                     {"uuid", uuid}};
               webSocket->send(msg.dump(2), wsxx::WebSocket::PacketType::Text);
-            }*/
+            }
           });
         }
       },
@@ -101,11 +102,11 @@ int main(int argc, const char** argv) {
                                       {"uuid", uuid}};
                 webSocket->send(msg.dump(2), wsxx::WebSocket::PacketType::Text);
               }
-           /*   {
+              {
                 nlohmann::json msg = {{"ice",  nullptr},
                                       {"uuid", uuid}};
                 webSocket->send(msg.dump(2), wsxx::WebSocket::PacketType::Text);
-              }*/
+              }
             });
           }
         } else if(ice != msg.end()) {

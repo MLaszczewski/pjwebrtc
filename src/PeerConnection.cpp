@@ -80,7 +80,7 @@ namespace webrtc {
 
   }
 
-  PeerConnection::PeerConnection(PeerConnectionConfiguration& configurationp) : configuration(configurationp) {
+  PeerConnection::PeerConnection() {
     iceGatheringState = "new";
     iceConnectionState = "new";
     connectionState = "new";
@@ -96,6 +96,11 @@ namespace webrtc {
     dtlsCompletePromise = nullptr;
 
     remoteIceCompletePromise = std::make_shared<promise::Promise<bool>>();
+
+  }
+
+  void PeerConnection::init(PeerConnectionConfiguration& configurationp) {
+    configuration = configurationp;
 
     pj_status_t status;
     pool = pj_pool_create(&cachingPool.factory,"PeerConnection.pool", 4096, 4096, NULL);
@@ -144,30 +149,6 @@ namespace webrtc {
         addIceServer(url, uname, cred);
       }
     }
-/*
-    auto& stun1 = cfg.stun_tp[cfg.stun_tp_cnt++];
-    pj_ice_strans_stun_cfg_default(&stun1);
-    stun1.server = pj_strdup3(pool, "turn.xaos.ninja");
-    stun1.port = 4433;
-    stun1.af = pj_AF_INET();
-
-    auto& turn1 = cfg.turn_tp[cfg.turn_tp_cnt++];
-    pj_ice_strans_turn_cfg_default(&turn1);
-    turn1.server =  pj_strdup3(pool, "turn.xaos.ninja");
-    turn1.port = 4433;
-    turn1.af = pj_AF_INET();
-    turn1.auth_cred.type = PJ_STUN_AUTH_CRED_STATIC;
-    turn1.auth_cred.data.static_cred.username = pj_strdup3(pool, "test");
-    turn1.auth_cred.data.static_cred.data_type = PJ_STUN_PASSWD_PLAIN;
-    turn1.auth_cred.data.static_cred.data = pj_strdup3(pool, "12345");*/
-/*
-    auto& turn2 = cfg.turn_tp[cfg.turn_tp_cnt++];
-    turn2 = turn1;
-    turn2.af = pj_AF_INET6();
-
-    auto& stun2 = cfg.stun_tp[cfg.stun_tp_cnt++];
-    stun2 = stun1;
-    stun2.af = pj_AF_INET6();*/
 
     pjmedia_srtp_setting_default(&srtpSetting);
     srtpSetting.use = PJMEDIA_SRTP_MANDATORY;
@@ -177,7 +158,6 @@ namespace webrtc {
     srtpSetting.keying[1] = PJMEDIA_SRTP_KEYING_SDES;
     srtpSetting.user_data = (void*)this;
     srtpSetting.cb = srtpCallbacks;
-
   }
 
   void PeerConnection::addStream(std::shared_ptr<UserMedia> userMedia) {
@@ -197,15 +177,15 @@ namespace webrtc {
     for (int i = 0; i < streamsCount; i++) {
       mediaTransport.push_back(MediaTransport{nullptr, nullptr}); // make place for new transport
       auto& transport = mediaTransport[mediaTransport.size()-1];
-      status = pjmedia_ice_create3(mediaEndpoint, NULL, 1, &iceTransportConfiguration, &iceCallbacks, 0,
-                                   (void*)this, &transport.ice);
+      status = pjmedia_ice_create3(mediaEndpoint, NULL, 1, &iceTransportConfiguration, &iceCallbacks,
+          PJMEDIA_ICE_RTCP_MUX, (void*)this, &transport.ice);
       assert(status == PJ_SUCCESS);
 
 
-      status = pjmedia_transport_mux_create(mediaEndpoint, transport.ice, &transport.mux);
-      assert(status == PJ_SUCCESS);
+     /* status = pjmedia_transport_mux_create(mediaEndpoint, transport.ice, &transport.mux);
+      assert(status == PJ_SUCCESS);*/
 
-      status = pjmedia_transport_srtp_create(mediaEndpoint, transport.mux, &srtpSetting, &transport.srtp);
+      status = pjmedia_transport_srtp_create(mediaEndpoint, transport.ice, &srtpSetting, &transport.srtp);
       assert(status == PJ_SUCCESS);
 
     }
@@ -255,17 +235,17 @@ namespace webrtc {
   std::string replace(const std::string& data, const std::string& substr, const std::string& replacement)
   {
     std::string res;
-    std::string::const_iterator b = cbegin(data);
-    std::string::const_iterator e = cend(data);
+    std::string::const_iterator b = data.cbegin();
+    std::string::const_iterator e = data.cend();
 
-    std::string::const_iterator pos = search(b, e, cbegin(substr), cend(substr));
+    std::string::const_iterator pos = search(b, e, substr.cbegin(), substr.cend());
     while (pos != e)
     {
       std::copy(b, pos, back_inserter(res));
       std::copy(begin(replacement), end(replacement), back_inserter(res));
 
       b = pos + substr.size();
-      pos = search(b, e, cbegin(substr), cend(substr));
+      pos = search(b, e, substr.cbegin(), substr.cend());
     }
     std::copy(b, e, std::back_inserter(res));
 
@@ -515,7 +495,7 @@ namespace webrtc {
     mediaStreams.resize(mediaTransport.size());
 
     for(int i = 0; i < mediaTransport.size(); i++) {
-      auto &transport = mediaTransport[i].srtp;
+      auto transport = mediaTransport[i].srtp;
       status = pjmedia_transport_media_start(transport, pool, localSdp, remoteSdp, i);
       assert(status == PJ_SUCCESS);
     }

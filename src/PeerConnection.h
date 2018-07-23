@@ -20,7 +20,7 @@ namespace webrtc {
   struct MediaTransport {
     pjmedia_transport* ice;
     pjmedia_transport* srtp;
-    pjmedia_transport* mux;
+    //pjmedia_transport* mux;
   };
 
   struct MediaStream {
@@ -102,8 +102,10 @@ namespace webrtc {
 
     PeerConnectionConfiguration configuration;
 
-    PeerConnection(PeerConnectionConfiguration& configurationp);
+    PeerConnection();
     ~PeerConnection();
+
+    void init(PeerConnectionConfiguration& configurationp);
 
     void addStream(std::shared_ptr<UserMedia> userMedia);
     std::shared_ptr<promise::Promise<bool>> gatherIceCandidates(int streamsCount);
