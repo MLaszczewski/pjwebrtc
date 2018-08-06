@@ -21,7 +21,7 @@ function pageReady() {
   serverConnection.onmessage = gotMessageFromServer;
 
   var constraints = {
-    video: false,
+    video: true,
     audio: true,
   };
 

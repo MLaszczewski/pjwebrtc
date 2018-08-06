@@ -28,12 +28,12 @@ set(PJ_SUFIX unknown-linux-gnu)
 
 target_link_libraries(pjwebrtc
         stdc++
-        opus
+        opus openh264
         pjnath-x86_64-${PJ_SUFIX}
-        pjmedia-x86_64-${PJ_SUFIX}
         pjmedia-videodev-x86_64-${PJ_SUFIX}
         pjmedia-audiodev-x86_64-${PJ_SUFIX}
         pjmedia-codec-x86_64-${PJ_SUFIX}
+        pjmedia-x86_64-${PJ_SUFIX}
         pjsip-simple-x86_64-${PJ_SUFIX}
         pjsip-ua-x86_64-${PJ_SUFIX}
         pjsip-x86_64-${PJ_SUFIX}
@@ -51,7 +51,7 @@ target_link_libraries(pjwebrtc
         pjlib-util-x86_64-${PJ_SUFIX}
         )
 
-target_link_libraries(pjwebrtc ssl crypto pthread asound uuid)
+target_link_libraries(pjwebrtc ssl crypto pthread asound uuid v4l2 SDL2)
 
 #target_link_libraries(pjwebrtc
 #        /usr/local/opt/openssl@1.1/lib/libssl.1.1.dylib

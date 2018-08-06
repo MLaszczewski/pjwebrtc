@@ -10,6 +10,45 @@
 #include <WebSocket.h>
 #include <json.hpp>
 #include <random>
+#include <pthread.h>
+
+static pthread_t pollingThread;
+pj_thread_t* pjPollingThread;
+pj_thread_desc pollingThreadDesc;
+
+static pthread_t timerThread;
+pj_thread_t* pjTimerThread;
+pj_thread_desc timerThreadDesc;
+
+static void* pollingFunction(void*) {
+  pj_thread_register("polling", pollingThreadDesc, &pjPollingThread);
+  while(true) {
+    const pj_time_val delay = {.sec = 0, .msec = 10};
+    pj_ioqueue_poll(webrtc::ioqueue, &delay);
+  }
+  return 0;
+}
+static void* timerFunction(void*) {
+  pj_thread_register("timer_polling", timerThreadDesc, &pjTimerThread);
+  while(true) {
+    pj_timer_heap_poll(webrtc::timerHeap, nullptr);
+    std::this_thread::sleep_for( std::chrono::milliseconds( 10 ) );
+  }
+  return 0;
+}
+static int runPollingThreads() {
+  if(pthread_create(&pollingThread, 0, pollingFunction, 0) == -1) {
+    return -1;
+  }
+  pthread_detach(pollingThread);
+
+  if(pthread_create(&timerThread, 0, timerFunction, 0) == -1) {
+    return -1;
+  }
+  pthread_detach(timerThread);
+
+  return 0;
+}
 
 std::string generateRandomId(size_t length = 0)
 {
@@ -29,6 +68,8 @@ std::string generateRandomId(size_t length = 0)
 
 int main(int argc, const char** argv) {
   webrtc::init();
+
+  runPollingThreads();
 
   bool offerer = std::string(argv[1]) == "call";
 
@@ -51,9 +92,10 @@ int main(int argc, const char** argv) {
 
   pj_thread_t* wsThread = nullptr;
   pj_thread_desc wsThreadDesc;
+  bzero(wsThreadDesc, sizeof(pj_thread_desc));
   pj_thread_t* wsReaderThread = nullptr;
   pj_thread_desc wsReaderThreadDesc;
-  bzero(wsThreadDesc, sizeof(pj_thread_desc));
+  bzero(wsReaderThreadDesc, sizeof(pj_thread_desc));
 
   std::shared_ptr<wsxx::WebSocket> webSocket = std::make_shared<wsxx::WebSocket>(
       "ws://localhost:8338/",
@@ -118,11 +160,13 @@ int main(int argc, const char** argv) {
       }
   );
 
-  while (true) {
-    const pj_time_val delay = {0, 10};
-    pj_timer_heap_poll(peerConnection->timerHeap, nullptr);
-    pj_ioqueue_poll(peerConnection->ioqueue, &delay);
+  /*pthread_join(pollingThread, nullptr);
+  pthread_join(timerThread, nullptr);*/
+  while(true) {
+    std::this_thread::sleep_for( std::chrono::milliseconds( 1000 ) );
   }
+
+  printf("EXITING!\n");
 
   webrtc::destroy();
 

@@ -31,7 +31,6 @@ namespace webrtc {
 
   class PeerConnection {
   private:
-    pjmedia_endpt *mediaEndpoint;
     std::vector<MediaTransport> mediaTransport; /* Media stream transport	*/
     int mediaTransportsIceInitializedCount;
     int mediaTransportsDtlsInitializedCount;
@@ -44,7 +43,7 @@ namespace webrtc {
 
     std::vector<std::shared_ptr<UserMedia>> inputStreams;
 
-    std::shared_ptr<promise::Promise<bool>> iceCompletePromise;
+
     std::shared_ptr<promise::Promise<bool>> dtlsCompletePromise;
 
     nlohmann::json doCreateOffer();
@@ -84,9 +83,8 @@ namespace webrtc {
     unsigned int lastRtpTs;
 
   public:
-    pj_ioqueue_t* ioqueue;
-    pj_timer_heap_t* timerHeap;
 
+    std::shared_ptr<promise::Promise<bool>> iceCompletePromise;
 
     std::string iceGatheringState;
     std::function<void(std::string)> onIceGatheringStateChange;
@@ -96,6 +94,8 @@ namespace webrtc {
     std::function<void(std::string)> onConnectionStateChange;
     std::string signalingState;
     std::function<void(std::string)> onSignalingStateChange;
+
+    std::function<void()> onAddStream;
 
 
     std::vector<nlohmann::json> localCandidates;
@@ -120,7 +120,7 @@ namespace webrtc {
 
     void close();
 
-   /// callbacks:
+    /// callbacks:
     void handleIceTransportComplete(pjmedia_transport *pTransport);
     void handleDtlsTransportComplete(pjmedia_transport *pTransport);
   };

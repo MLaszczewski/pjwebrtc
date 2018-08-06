@@ -20,8 +20,8 @@ namespace webrtc {
   }
 
   pjmedia_ice_cb iceCallbacks = {
-    .on_ice_complete = onIceComplete,
-    .on_ice_complete2 = onIceComplete2
+      .on_ice_complete = onIceComplete,
+      .on_ice_complete2 = onIceComplete2
   };
 
   void onSrtpComplete(pjmedia_transport *tp, pj_status_t status) {
@@ -96,7 +96,6 @@ namespace webrtc {
     dtlsCompletePromise = nullptr;
 
     remoteIceCompletePromise = std::make_shared<promise::Promise<bool>>();
-
   }
 
   void PeerConnection::init(PeerConnectionConfiguration& configurationp) {
@@ -104,28 +103,9 @@ namespace webrtc {
 
     pj_status_t status;
     pool = pj_pool_create(&cachingPool.factory,"PeerConnection.pool", 4096, 4096, NULL);
-    assert( pj_timer_heap_create(pool, 100, &timerHeap) == PJ_SUCCESS );
-
-    /* Create the endpoint: */
-    status = pjmedia_endpt_create(&cachingPool.factory, NULL, 1, &mediaEndpoint);
-
-    //pj_bool_t telephony = false;
-    //pjmedia_endpt_set_flag(mediaEndpoint, PJMEDIA_ENDPT_HAS_TELEPHONE_EVENT_FLAG, &telephony);
-
-    assert(status == PJ_SUCCESS);
-    status = pjmedia_codec_g711_init(mediaEndpoint);
-    assert(status == PJ_SUCCESS);
-    status = pjmedia_codec_g722_init(mediaEndpoint);
-    assert(status == PJ_SUCCESS);
-    status = pjmedia_codec_ilbc_init(mediaEndpoint, 30);
-    assert(status == PJ_SUCCESS);
-//    status = pjmedia_codec_opus_init(mediaEndpoint);
-//    assert(status == PJ_SUCCESS);
 
     mediaTransportsIceInitializedCount = 0;
     mediaTransportsDtlsInitializedCount = 0;
-
-    pj_ioqueue_create(pool, 16, &ioqueue);
 
     pj_ice_strans_cfg_default(&iceTransportConfiguration);
     auto & cfg = iceTransportConfiguration;
@@ -140,12 +120,19 @@ namespace webrtc {
       auto credi = iceServer.find("credential");
       if(unamei != iceServer.end()) uname = *unamei;
       if(credi != iceServer.end()) cred = *credi;
-      if(iceServer["urls"].is_array()) {
-        for(std::string url : iceServer["urls"]) {
+      auto urli = iceServer.find("url");
+      auto urlsi = iceServer.find("urls");
+      if(urlsi != iceServer.end()) {
+        if (iceServer["urls"].is_array()) {
+          for (std::string url : iceServer["urls"]) {
+            addIceServer(url, uname, cred);
+          }
+        } else {
+          std::string url = iceServer["urls"];
           addIceServer(url, uname, cred);
         }
-      } else {
-        std::string url = iceServer["urls"];
+      } else if(urli != iceServer.end()) {
+        std::string url = iceServer["url"];
         addIceServer(url, uname, cred);
       }
     }
@@ -162,7 +149,8 @@ namespace webrtc {
 
   void PeerConnection::addStream(std::shared_ptr<UserMedia> userMedia) {
     inputStreams.push_back(userMedia);
-    if(inputStreams.size() > mediaTransport.size()) gatherIceCandidates(inputStreams.size() - mediaTransport.size());
+    if(inputStreams.size() > mediaTransport.size())
+      gatherIceCandidates(inputStreams.size() - mediaTransport.size());
   }
 
   std::shared_ptr<promise::Promise<bool>> PeerConnection::gatherIceCandidates(int streamsCount) {
@@ -178,12 +166,12 @@ namespace webrtc {
       mediaTransport.push_back(MediaTransport{nullptr, nullptr}); // make place for new transport
       auto& transport = mediaTransport[mediaTransport.size()-1];
       status = pjmedia_ice_create3(mediaEndpoint, NULL, 1, &iceTransportConfiguration, &iceCallbacks,
-          PJMEDIA_ICE_RTCP_MUX, (void*)this, &transport.ice);
+                                   PJMEDIA_ICE_RTCP_MUX, (void*)this, &transport.ice);
       assert(status == PJ_SUCCESS);
 
 
-     /* status = pjmedia_transport_mux_create(mediaEndpoint, transport.ice, &transport.mux);
-      assert(status == PJ_SUCCESS);*/
+      /* status = pjmedia_transport_mux_create(mediaEndpoint, transport.ice, &transport.mux);
+       assert(status == PJ_SUCCESS);*/
 
       status = pjmedia_transport_srtp_create(mediaEndpoint, transport.ice, &srtpSetting, &transport.srtp);
       assert(status == PJ_SUCCESS);
@@ -215,7 +203,7 @@ namespace webrtc {
 
   std::shared_ptr<promise::Promise<nlohmann::json>> PeerConnection::createOffer() {
     printf("CREATE OFFER?!");
-    if(mediaTransport.size() == 0) throw "zrob tu errora";
+    if(mediaTransport.size() == 0) throw "error";
     return iceCompletePromise->then<nlohmann::json>([this](bool& v) {
       startTransportIfPossible();
       return promise::Promise<nlohmann::json>::resolved(doCreateOffer());
@@ -223,11 +211,12 @@ namespace webrtc {
   }
 
   std::shared_ptr<promise::Promise<nlohmann::json>> PeerConnection::createAnswer() {
-    if(mediaTransport.size() == 0) throw "zrob tu errora";
-    return iceCompletePromise->then<nlohmann::json>([this](bool& v) {
-      return remoteIceCompletePromise->then<nlohmann::json>([this](bool& v) {
-        startTransportIfPossible();
-        return promise::Promise<nlohmann::json>::resolved(doCreateAnswer(this->remoteDescription));
+    if(mediaTransport.size() == 0) throw "error";
+    PeerConnection* pc = this;
+    return pc->iceCompletePromise->then<nlohmann::json>([this, pc](bool& v) {
+      return pc->remoteIceCompletePromise->then<nlohmann::json>([this, pc](bool& v) {
+        pc->startTransportIfPossible();
+        return promise::Promise<nlohmann::json>::resolved(pc->doCreateAnswer(this->remoteDescription));
       });
     });
   }
@@ -280,7 +269,7 @@ namespace webrtc {
 
     transportInfo.sock_info.rtp_addr_name = zero;
     transportInfo.sock_info.rtcp_addr_name = zero;
-    
+
     status = pjmedia_endpt_create_audio_sdp(mediaEndpoint, pool, &transportInfo.sock_info, 0, &sdpMedia);
     assert(status == PJ_SUCCESS);
     sdp->media[sdp->media_count++] = sdpMedia;
@@ -492,8 +481,6 @@ namespace webrtc {
 
     printf("LOCAL AND REMOTE SDP PARSED!\n");
 
-    mediaStreams.resize(mediaTransport.size());
-
     for(int i = 0; i < mediaTransport.size(); i++) {
       auto transport = mediaTransport[i].srtp;
       status = pjmedia_transport_media_start(transport, pool, localSdp, remoteSdp, i);
@@ -509,8 +496,9 @@ namespace webrtc {
   }
 
   void PeerConnection::startMedia() {
-
     printf("START MEDIA!!!\n");
+    mediaStreams.resize(mediaTransport.size());
+
     for(int i = 0; i < mediaTransport.size(); i++) {
       pj_status_t status;
 
@@ -552,7 +540,8 @@ namespace webrtc {
       status = pjmedia_stream_get_port(stream.stream, &stream.mediaPort);
       assert(status == PJ_SUCCESS);
 
-      pjmedia_snd_port_create(pool, /*PJMEDIA_AUD_DEFAULT_CAPTURE_DEV, PJMEDIA_AUD_DEFAULT_PLAYBACK_DEV,*/ 1, 0,
+      printf("CREATING MEDIA PORT!\n");
+      pjmedia_snd_port_create(pool, PJMEDIA_AUD_DEFAULT_CAPTURE_DEV, PJMEDIA_AUD_DEFAULT_PLAYBACK_DEV,// 1, 0,
                               PJMEDIA_PIA_SRATE(&stream.mediaPort->info), /* clock rate */
                               PJMEDIA_PIA_CCNT(&stream.mediaPort->info), /* channel count */
                               PJMEDIA_PIA_SPF(&stream.mediaPort->info), /* samples per frame*/
@@ -563,13 +552,18 @@ namespace webrtc {
       status = pjmedia_snd_port_connect(stream.soundPort, stream.mediaPort);
       assert(status == PJ_SUCCESS);
 
+      printf("CONNECTED!\n");
       connectionState = "connected";
       if(onConnectionStateChange) onConnectionStateChange(connectionState);
+      iceConnectionState = "connected";
+      if(onIceConnectionStateChange) onIceConnectionStateChange(iceConnectionState);
+
+      if(onAddStream) onAddStream();
 
       //pjmedia_transport_simulate_lost(mediaTransport[i].mux, PJMEDIA_DIR_ENCODING_DECODING, 20);
 
     }
-    scheduleReadStats(2, 0);
+    scheduleReadStats(5, 0);
   }
 
   static const char *good_number(char *buf, pj_int32_t val)
@@ -592,6 +586,8 @@ namespace webrtc {
   void PeerConnection::readStats() {
     char duration[80], last_update[80];
     char bps[16], ipbps[16], packets[16], bytes[16], ipbytes[16];
+
+    if(closed) return;
 
     printf("READ STREAM STATS(%zd)!\n", mediaStreams.size());
 
@@ -723,6 +719,7 @@ namespace webrtc {
       pjmedia_stream_get_rtp_session_info(mediaStreams[i].stream, &rtp_info);
       unsigned int rtpTs = rtp_info.rtcp->rtp_last_ts;
       if(rtpTs == lastRtpTs) {
+        printf("CLOSING BECAUSE POOR NETWORK CONDITIONS!\n");
         return handleDisconnect();
       }
       lastRtpTs = rtpTs;
@@ -750,30 +747,32 @@ namespace webrtc {
 
   void PeerConnection::handleDisconnect() {
     printf("STOP MEDIA!!!\n");
+    if(closed) return;
+    closed = true;
     for(int i = 0; i < mediaTransport.size(); i++) {
       pj_status_t status;
-      pjmedia_stream_destroy(mediaStreams[i].stream);
-      pjmedia_snd_port_disconnect(mediaStreams[i].soundPort);
-      pjmedia_port_destroy(mediaStreams[i].mediaPort);
-      pjmedia_snd_port_destroy(mediaStreams[i].soundPort);
+      if(mediaStreams.size() > i) {
+        pjmedia_snd_port_disconnect(mediaStreams[i].soundPort);
+        pjmedia_stream_destroy(mediaStreams[i].stream);
+        pjmedia_port_destroy(mediaStreams[i].mediaPort);
+        pjmedia_snd_port_destroy(mediaStreams[i].soundPort);
+      }
 
       pjmedia_transport_close(mediaTransport[i].srtp);
     }
-    closed = true;
-  }
-
-  void PeerConnection::close() {
     connectionState = "closed";
     if(onConnectionStateChange) onConnectionStateChange(connectionState);
     iceConnectionState = "closed";
     if(onIceConnectionStateChange) onIceConnectionStateChange(iceConnectionState);
   }
 
+  void PeerConnection::close() {
+    handleDisconnect();
+  }
+
   PeerConnection::~PeerConnection() {
     if(!closed) handleDisconnect();
-    pj_timer_heap_destroy(timerHeap);
-    pj_ioqueue_destroy(ioqueue);
-    pjmedia_endpt_destroy2(mediaEndpoint);
+
     pj_pool_release(pool);
   }
 

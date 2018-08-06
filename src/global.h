@@ -19,6 +19,9 @@
 namespace webrtc {
 
   extern pj_caching_pool cachingPool;
+  extern pj_ioqueue_t* ioqueue;
+  extern pj_timer_heap_t* timerHeap;
+  extern pjmedia_endpt *mediaEndpoint;
 
   void init();
   void destroy();
