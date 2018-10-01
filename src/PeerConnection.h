@@ -6,6 +6,7 @@
 #define PJWEBRTC_PEERCONNECTION_H
 
 #include <vector>
+#include <string>
 #include "UserMedia.h"
 #include "global.h"
 #include "Promise.h"
@@ -20,13 +21,23 @@ namespace webrtc {
   struct MediaTransport {
     pjmedia_transport* ice;
     pjmedia_transport* srtp;
-    //pjmedia_transport* mux;
+    pjmedia_transport* bundle;
   };
 
   struct MediaStream {
+    pjmedia_transport* transport;
     pjmedia_stream* stream;
     pjmedia_port* mediaPort;
     pjmedia_snd_port* soundPort;
+    size_t inputListenerId;
+  };
+
+  struct TrackId {
+    std::shared_ptr<UserMedia> userMedia;
+    int trackId;
+    std::shared_ptr<Track> get() {
+      return userMedia->tracks[trackId];
+    }
   };
 
   class PeerConnection {
@@ -41,10 +52,11 @@ namespace webrtc {
 
     pjmedia_srtp_setting srtpSetting;
 
-    std::vector<std::shared_ptr<UserMedia>> inputStreams;
-
+    std::vector<TrackId> inputTracks;
 
     std::shared_ptr<promise::Promise<bool>> dtlsCompletePromise;
+
+    bool bundle;
 
     nlohmann::json doCreateOffer();
     nlohmann::json doCreateAnswer(nlohmann::json offer);
@@ -62,6 +74,7 @@ namespace webrtc {
     bool remoteCandidatesGathered;
     std::shared_ptr<promise::Promise<bool>> remoteIceCompletePromise;
 
+
     bool sdpGenerated;
     bool transportStarted;
 
@@ -72,12 +85,15 @@ namespace webrtc {
 
     void readStats();
     void scheduleReadStats(int secs, int msecs);
-
     friend void  statTimerCb(pj_timer_heap_t *ht, pj_timer_entry *e);
+
+    void checkIce();
+    friend void checkIceTimerCb(pj_timer_heap_t *ht, pj_timer_entry *e);
 
     void addIceServer(std::string& url, std::string username, std::string password);
 
     void handleDisconnect();
+
     bool closed;
 
     unsigned int lastRtpTs;
@@ -122,6 +138,7 @@ namespace webrtc {
 
     /// callbacks:
     void handleIceTransportComplete(pjmedia_transport *pTransport);
+    void handleIceTransportFailed(pjmedia_transport *pTransport);
     void handleDtlsTransportComplete(pjmedia_transport *pTransport);
   };
 

@@ -20,7 +20,7 @@ include_directories(${LIB_DIR})
 
 aux_source_directory(${MAIN_DIR}/src SRC_FILE_LIST)
 
-set(SOURCES main.cpp ${SRC_FILE_LIST} ${PROMISE_SRC_LIST} ${WSXX_SRC_LIST})
+set(SOURCES main.cpp ${SRC_FILE_LIST} ${PROMISE_SRC_LIST} ${WSXX_SRC_LIST} linux/terminal.cpp)
 
 add_executable(pjwebrtc ${SOURCES})
 

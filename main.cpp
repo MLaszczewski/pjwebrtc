@@ -1,12 +1,14 @@
 #include <pjmedia.h>
 #include <pjlib-util.h>
 #include <pjlib.h>
+#include <termios.h>
 #include <stdio.h>
 #include <stdlib.h>
 
 #include "src/global.h"
 #include "src/UserMedia.h"
 #include "src/PeerConnection.h"
+#include "linux/terminal.h"
 #include <WebSocket.h>
 #include <json.hpp>
 #include <random>
@@ -73,7 +75,10 @@ int main(int argc, const char** argv) {
 
   bool offerer = std::string(argv[1]) == "call";
 
-  webrtc::UserMediaConstraints constraints;
+  webrtc::UserMediaConstraints constraints = {
+      .audio = true,
+      .video = false
+  };
   std::shared_ptr<webrtc::UserMedia> userMedia = webrtc::UserMedia::getUserMedia(constraints);
 
   webrtc::PeerConnectionConfiguration pcConfig;
@@ -163,8 +168,25 @@ int main(int argc, const char** argv) {
   /*pthread_join(pollingThread, nullptr);
   pthread_join(timerThread, nullptr);*/
   while(true) {
-    std::this_thread::sleep_for( std::chrono::milliseconds( 1000 ) );
+    //std::this_thread::sleep_for( std::chrono::milliseconds( 1000 ) );
+    printf("Controls:\n");
+    printf("  m - Mute %s\n", userMedia && userMedia->tracks[0]->isEnabled() ? "on" : "off");
+    printf("  q - Quit\n");
+    char ch = getch();
+    switch(ch) {
+      case 'm' :
+        userMedia->tracks[0]->setEnabled(!userMedia->tracks[0]->isEnabled());
+        break;
+      case 'q' :
+        printf("EXITING!\n");
+
+        webrtc::destroy();
+
+        /* Done. */
+        return 0;
+    }
   }
+
 
   printf("EXITING!\n");
 

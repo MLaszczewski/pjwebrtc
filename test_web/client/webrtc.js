@@ -26,6 +26,7 @@ function pageReady() {
   };
 
   if(navigator.mediaDevices.getUserMedia) {
+    console.log("GET USER MEDIA!")
     navigator.mediaDevices.getUserMedia(constraints).then(getUserMediaSuccess).catch(errorHandler);
   } else {
     alert('Your browser does not support getUserMedia API');
@@ -33,6 +34,7 @@ function pageReady() {
 }
 
 function getUserMediaSuccess(stream) {
+  console.log("USER MEDIA SUCCESS!")
   localStream = stream;
   localAudio.srcObject = stream;
 }
@@ -68,9 +70,30 @@ function start(isCaller) {
     console.log("PEER IDENTITY", ev);
   }
 
-
   if(isCaller) {
     peerConnection.createOffer().then(createdDescription).catch(errorHandler);
+  }
+}
+
+function toggleAudio() {
+  let old = localStream.getTracks()[0].enabled
+  let nev = !old
+  localStream.getTracks()[0].enabled = nev
+  if(nev) {
+    document.querySelector("#toggleAudio").value = "Mute Audio";
+  } else {
+    document.querySelector("#toggleAudio").value = "Unmute Audio";
+  }
+}
+
+function toggleVideo() {
+  let old = localStream.getTracks()[1].enabled
+  let nev = !old
+  localStream.getTracks()[0].enabled = nev
+  if(nev) {
+    document.querySelector("#toggleVideo").value = "Mute Video";
+  } else {
+    document.querySelector("#toggleVideo").value = "Unmute Video";
   }
 }
 
@@ -96,6 +119,7 @@ function gotMessageFromServer(message) {
 }
 
 function gotIceCandidate(event) {
+  console.log("ICE CANDIDATE", event.candidate);
   //if(event.candidate != null) {
     serverConnection.send(JSON.stringify({'ice': event.candidate, 'uuid': uuid}));
   //}
@@ -105,6 +129,7 @@ function createdDescription(description) {
   console.log('got description');
 
   peerConnection.setLocalDescription(description).then(function() {
+    console.log('local description set');
     serverConnection.send(JSON.stringify({'sdp': peerConnection.localDescription, 'uuid': uuid}));
   }).catch(errorHandler);
 }

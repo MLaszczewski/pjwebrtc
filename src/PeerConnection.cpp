@@ -5,11 +5,17 @@
 
 #include "PeerConnection.h"
 
+#include <algorithm>
+#include <cmath>
+
 namespace webrtc {
 
-  void onIceComplete(pjmedia_transport *tp, pj_ice_strans_op op, pj_status_t status){
-    assert(status == PJ_SUCCESS);
-    PeerConnection* pc = (PeerConnection*)tp->user_data;
+  void onIceComplete(pjmedia_transport *tp, pj_ice_strans_op op, pj_status_t status) {
+    PeerConnection *pc = (PeerConnection *) tp->user_data;
+    if (status != PJ_SUCCESS) {
+      pc->handleIceTransportFailed(tp);
+      return;
+    }
     pc->handleIceTransportComplete(tp);
   }
 
@@ -95,6 +101,8 @@ namespace webrtc {
     iceCompletePromise = nullptr;
     dtlsCompletePromise = nullptr;
 
+    bundle = true;
+
     remoteIceCompletePromise = std::make_shared<promise::Promise<bool>>();
   }
 
@@ -148,9 +156,10 @@ namespace webrtc {
   }
 
   void PeerConnection::addStream(std::shared_ptr<UserMedia> userMedia) {
-    inputStreams.push_back(userMedia);
-    if(inputStreams.size() > mediaTransport.size())
-      gatherIceCandidates(inputStreams.size() - mediaTransport.size());
+    for(int i = 0; i < userMedia->tracks.size(); i++) {
+      TrackId track = { .userMedia = userMedia, .trackId = i};
+      inputTracks.push_back(track);
+    }
   }
 
   std::shared_ptr<promise::Promise<bool>> PeerConnection::gatherIceCandidates(int streamsCount) {
@@ -167,13 +176,23 @@ namespace webrtc {
       auto& transport = mediaTransport[mediaTransport.size()-1];
       status = pjmedia_ice_create3(mediaEndpoint, NULL, 1, &iceTransportConfiguration, &iceCallbacks,
                                    PJMEDIA_ICE_RTCP_MUX, (void*)this, &transport.ice);
-      assert(status == PJ_SUCCESS);
-
+      if(status != PJ_SUCCESS) {
+        iceGatheringState = "complete";
+        if(onIceGatheringStateChange) onIceGatheringStateChange(iceGatheringState);
+        iceConnectionState = "failed";
+        if(onIceConnectionStateChange) onIceConnectionStateChange(iceConnectionState);
+        connectionState = "failed";
+        if(onConnectionStateChange) onConnectionStateChange(connectionState);
+        //iceCompletePromise->reject(std::make_exception_ptr(std::logic_error("ice failed")));
+        iceCompletePromise->resolve(false); // rejection fails with sigabrt TODO: repair promises
+        return iceCompletePromise;
+      }
 
       /* status = pjmedia_transport_mux_create(mediaEndpoint, transport.ice, &transport.mux);
        assert(status == PJ_SUCCESS);*/
 
       status = pjmedia_transport_srtp_create(mediaEndpoint, transport.ice, &srtpSetting, &transport.srtp);
+
       assert(status == PJ_SUCCESS);
 
     }
@@ -203,6 +222,10 @@ namespace webrtc {
 
   std::shared_ptr<promise::Promise<nlohmann::json>> PeerConnection::createOffer() {
     printf("CREATE OFFER?!");
+    if(!iceCompletePromise) {
+      if(inputTracks.size() > 1) bundle = true;
+      gatherIceCandidates(1);
+    }
     if(mediaTransport.size() == 0) throw "error";
     return iceCompletePromise->then<nlohmann::json>([this](bool& v) {
       startTransportIfPossible();
@@ -211,8 +234,12 @@ namespace webrtc {
   }
 
   std::shared_ptr<promise::Promise<nlohmann::json>> PeerConnection::createAnswer() {
-    if(mediaTransport.size() == 0) throw "error";
     PeerConnection* pc = this;
+    if(!iceCompletePromise) {
+      if(inputTracks.size() > 1) bundle = true;
+      gatherIceCandidates(1);
+    }
+    if(mediaTransport.size() == 0) throw "error";
     return pc->iceCompletePromise->then<nlohmann::json>([this, pc](bool& v) {
       return pc->remoteIceCompletePromise->then<nlohmann::json>([this, pc](bool& v) {
         pc->startTransportIfPossible();
@@ -243,6 +270,7 @@ namespace webrtc {
 
   nlohmann::json PeerConnection::doCreateOffer() {
     printf("CREATE SDP!\n");
+
     pj_status_t status;
     pj_sockaddr origin;
     pj_str_t originString = pj_strdup3(pool, "localhost");
@@ -385,9 +413,24 @@ namespace webrtc {
     //printf("\nRAW SDP:\n%s\n", rawSdpString.c_str());
 
     std::istringstream iss(rawSdpString);
-    oss.str("");
     std::string line;
+    bool foundAudio = false;
+    bool foundVideo = false;
+    while(std::getline(iss, line, '\n')) {
+      if(line.substr(0, 7) == "m=audio") {
+        foundAudio = true;
+      }
+      if(line.substr(0, 7) == "m=video") {
+        foundVideo = true;
+      }
+    }
+
+
+    iss.str(rawSdpString);
+    iss.clear();
+    oss.str("");
     std::string iceUfrag;
+    bool mediaFound = false;
     while(std::getline(iss, line, '\n')) {
       printf("SDP LINE: %s\n", line.c_str());
       if(line.substr(0, 12) == "a=candidate:") {
@@ -409,7 +452,22 @@ namespace webrtc {
           oss << "a=ice-options:trickle\r\n";
         }
         if(line.substr(0, 7) == "m=audio") {
+          if(!mediaFound) {
+            mediaFound = true;
+            oss << "a=group:BUNDLE";
+            if(foundAudio) oss << " audio";
+            if(foundVideo) oss << " video";
+          }
           oss << "a=mid:audio\r\n";
+        }
+        if(line.substr(0, 7) == "m=video") {
+          if(!mediaFound) {
+            mediaFound = true;
+            oss << "a=group:BUNDLE";
+            if(foundAudio) oss << " audio";
+            if(foundVideo) oss << " video";
+          }
+          oss << "a=mid:video\r\n";
         }
       }
     }
@@ -427,9 +485,50 @@ namespace webrtc {
   }
   void PeerConnection::setRemoteDescription(nlohmann::json sdp) {
     remoteDescription = sdp;
+    std::istringstream iss(remoteDescription["sdp"].get<std::string>());
+    std::string line;
+    std::string iceUfrag;
+    while(std::getline(iss, line, '\n')) {
+      printf("SDP LINE: %s\n", line.c_str());
+      if(line.substr(0, 14) == "a=group:BUNDLE") {
+        bundle = true;
+      }
+    }
     startTransportIfPossible();
   }
+
+  void checkIceTimerCb(pj_timer_heap_t *ht, pj_timer_entry *e) {
+    PeerConnection* pc = (PeerConnection*)e->user_data;
+    pc->checkIce();
+  }
+  void PeerConnection::checkIce() {
+    bool foundRelay = false;
+    for(auto& candidate : remoteCandidates) {
+      std::string text = candidate["candidate"].get<std::string>();
+      int pos = text.find("relay");
+      if(pos != std::string::npos) {
+        foundRelay = true;
+        break;
+      }
+    }
+    if(foundRelay) {
+      remoteCandidatesGathered = true;
+      remoteIceCompletePromise->resolve(true);
+      startTransportIfPossible();
+    }
+    pj_time_val delay;
+    pj_status_t status;
+    delay.sec = 1;
+    delay.msec = 0;
+    pj_timer_entry_init(&statTimerEntry, 0, (void*)this, checkIceTimerCb);
+    status = pj_timer_heap_schedule(timerHeap, &statTimerEntry, &delay);
+    assert(status == PJ_SUCCESS);
+  }
   void PeerConnection::addIceCandidate(nlohmann::json candidate) {
+    if(remoteCandidatesGathered) return;
+    if(remoteCandidates.size() == 0) {
+      checkIce();
+    }
     if(candidate == nullptr) {
       remoteCandidatesGathered = true;
       remoteIceCompletePromise->resolve(true);
@@ -497,15 +596,25 @@ namespace webrtc {
 
   void PeerConnection::startMedia() {
     printf("START MEDIA!!!\n");
-    mediaStreams.resize(mediaTransport.size());
 
-    for(int i = 0; i < mediaTransport.size(); i++) {
+    int streamsCount = remoteSdp->media_count;
+    if(streamsCount > inputTracks.size()) streamsCount = inputTracks.size();
+    if(!bundle && streamsCount > mediaTransport.size()) streamsCount = mediaTransport.size();
+
+    mediaStreams.resize(streamsCount);
+
+    if(bundle) {
+      pjmedia_transport_bundle_create(mediaEndpoint, mediaTransport[0].srtp, &mediaTransport[0].bundle);
+    }
+
+    for(int i = 0; i < mediaStreams.size(); i++) {
       pj_status_t status;
 
       pjmedia_stream_info stream_info;
       auto& stream = mediaStreams[i];
 
       pjmedia_transport_info transportInfo;
+
       pjmedia_transport_get_info(mediaTransport[i].ice, &transportInfo);
       /*remoteSdp->media[i]->conn->addr = transportInfo.sock_info.*/
 
@@ -528,7 +637,15 @@ namespace webrtc {
 
       stream_info.param->setting.vad = 0;
 
-      pjmedia_stream_create(mediaEndpoint, pool, &stream_info, mediaTransport[i].srtp, (void*)this, &stream.stream);
+      if(!bundle) {
+        stream.transport = mediaTransport[i].srtp;
+      } else {
+        pjmedia_transport_bundle_endpoint_create(mediaTransport[0].bundle, stream_info.ssrc, stream_info.rem_ssrc,
+            &stream.transport);
+      }
+
+      fprintf(stderr, "WTF\n?");
+      pjmedia_stream_create(mediaEndpoint, pool, &stream_info, stream.transport, (void*)this, &stream.stream);
       assert(status == PJ_SUCCESS);
 
       printf("STREAM ENCODING = %d \n", stream_info.dir & PJMEDIA_DIR_ENCODING);
@@ -539,6 +656,13 @@ namespace webrtc {
 
       status = pjmedia_stream_get_port(stream.stream, &stream.mediaPort);
       assert(status == PJ_SUCCESS);
+
+      stream.inputListenerId = inputTracks[i].get()->addStateListener([this, i](bool enabled) {
+        if(!enabled) pjmedia_stream_pause(mediaStreams[i].stream, PJMEDIA_DIR_ENCODING);
+        if(enabled) pjmedia_stream_resume(mediaStreams[i].stream, PJMEDIA_DIR_ENCODING);
+      });
+
+      if(!inputTracks[i].get()->isEnabled()) pjmedia_stream_pause(stream.stream, PJMEDIA_DIR_ENCODING);
 
       printf("CREATING MEDIA PORT!\n");
       pjmedia_snd_port_create(pool, PJMEDIA_AUD_DEFAULT_CAPTURE_DEV, PJMEDIA_AUD_DEFAULT_PLAYBACK_DEV,// 1, 0,
@@ -747,17 +871,17 @@ namespace webrtc {
 
   void PeerConnection::handleDisconnect() {
     printf("STOP MEDIA!!!\n");
+    pj_status_t status;
     if(closed) return;
     closed = true;
+    for(int i = 0; i < mediaStreams.size(); i++) {
+      pjmedia_snd_port_disconnect(mediaStreams[i].soundPort);
+      pjmedia_stream_destroy(mediaStreams[i].stream);
+      pjmedia_port_destroy(mediaStreams[i].mediaPort);
+      pjmedia_snd_port_destroy(mediaStreams[i].soundPort);
+      inputTracks[i].get()->removeStateListener(mediaStreams[i].inputListenerId);
+    }
     for(int i = 0; i < mediaTransport.size(); i++) {
-      pj_status_t status;
-      if(mediaStreams.size() > i) {
-        pjmedia_snd_port_disconnect(mediaStreams[i].soundPort);
-        pjmedia_stream_destroy(mediaStreams[i].stream);
-        pjmedia_port_destroy(mediaStreams[i].mediaPort);
-        pjmedia_snd_port_destroy(mediaStreams[i].soundPort);
-      }
-
       pjmedia_transport_close(mediaTransport[i].srtp);
     }
     connectionState = "closed";
@@ -774,6 +898,14 @@ namespace webrtc {
     if(!closed) handleDisconnect();
 
     pj_pool_release(pool);
+  }
+
+  void PeerConnection::handleIceTransportFailed(pjmedia_transport *pTransport) {
+    printf("ICE TRANSPORT FAILED!!!\n");
+    iceConnectionState = "failed";
+    if(onIceConnectionStateChange) onIceConnectionStateChange(iceConnectionState);
+    connectionState = "failed";
+    if(onConnectionStateChange) onConnectionStateChange(connectionState);
   }
 
 
